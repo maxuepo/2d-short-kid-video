@@ -26,6 +26,8 @@
 Stylized 3D game asset, hand-painted watercolor texture style with a soft Ghibli-like palette, gentle brush texture, clean readable shapes. Three-quarter front view from slightly above, the whole object fully visible and centered with margin around it. Neutral soft daylight, even lighting, very soft shadows, no night lighting, no glowing lights. Plain light grey background, no ground, no other objects, no people, no text, blank signboards.
 ```
 
+**6b. 本地混元3D（ComfyUI）：** 也可以在自己的显卡上批量转换（只出白模），见 [`tools/comfyui/README.md`](../../tools/comfyui/README.md)。图片按总表的文件名命名即可直接批量处理。
+
 **6. Tripo 设置：** 选「图片转 3D」。有高清贴图选项就打开。面数用中等即可（建筑 5~15 万面，小道具 1~3 万面），导出 **GLB** 格式。
 
 **7. 风格一致的小技巧：** 第一张满意的建筑图出来后，后面每张都把它作为参考图一起发给 Banana，并加一句 `Match the art style, colors and level of detail of the reference image.`
