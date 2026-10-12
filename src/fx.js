@@ -97,28 +97,31 @@
     ['255,200,90', '255,90,60'],
   ];
   const RISE = 1.0;
-  const FIREWORKS = (function () {
-    const r = KV.rng(77);
+  // 生成一份烟花排期。o: { seed, t0, t1, dense:[起,止], x:[min,max], y:[min,max], scale }
+  FX.makeFireworks = function (o) {
+    const r = KV.rng(o.seed);
     const list = [];
-    let t = 2.0;
-    while (t < 34) {
-      const dense = t > 13.5 && t < 23;
+    const k = o.scale || 1;
+    let t = o.t0;
+    while (t < o.t1) {
+      const dense = t > o.dense[0] && t < o.dense[1];
       const type = r() < 0.3 ? 'willow' : r() < 0.7 ? 'peony' : 'ring';
       list.push({
         t0: t,
-        x: 220 + r() * 1900,
-        y: 150 + r() * 230,
+        x: o.x[0] + r() * (o.x[1] - o.x[0]),
+        y: o.y[0] + r() * (o.y[1] - o.y[0]),
         type,
         pal: PALETTES[Math.floor(r() * PALETTES.length)],
         n: type === 'ring' ? 60 : 80 + Math.floor(r() * 40),
-        v: 230 + r() * 150,
+        v: (230 + r() * 150) * k,
         life: type === 'willow' ? 2.8 : 1.9,
         seed: Math.floor(r() * 1e9),
       });
       t += dense ? 0.3 + r() * 0.35 : 0.9 + r() * 1.1;
     }
     return list;
-  })();
+  };
+  const FIREWORKS = FX.makeFireworks({ seed: 77, t0: 2, t1: 34, dense: [13.5, 23], x: [220, 2120], y: [150, 380] });
   FX.FIREWORKS = FIREWORKS;
 
   function fwPos(fw, i, dt) {
@@ -135,12 +138,12 @@
   }
 
   // 返回本帧天空闪光强度（用于整体打光）
-  FX.fireworks = function (ctx, t) {
+  FX.fireworks = function (ctx, t, list) {
     let flash = 0;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
-    for (const fw of FIREWORKS) {
+    for (const fw of list || FIREWORKS) {
       const age = t - fw.t0;
       if (age < 0 || age > RISE + fw.life) continue;
       if (age < RISE) {

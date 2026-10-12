@@ -8,7 +8,8 @@
     "serve": "npx --yes http-server -c-1 -p 8080 .",
     "render": "node scripts/render-video.mjs",
     "render:preview": "node scripts/render-video.mjs --fps 12 --out out/preview.mp4",
-    "stills": "node scripts/render-video.mjs --stills 2,8,11,17.5,23,33"
+    "stills": "node scripts/render-video.mjs --stills 2,8,11,17.5,23,33",
+    "render:still": "node scripts/render-video.mjs --mode still --scene bridge-night"
   },
   "devDependencies": {
     "playwright": "1.56.1"

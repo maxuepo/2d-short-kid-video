@@ -5,6 +5,8 @@
 //   npm run render -- --fps 24 --start 14 --end 22 --out out/bridge.mp4
 //   npm run render -- --subs 0           # 不烧录字幕
 //   npm run stills                       # 导出若干关键帧 PNG 到 out/stills/
+//   npm run render:still                 # 单图模式（assets/scenes/bridge-night）→ out/still-bridge-night.mp4
+//   npm run render -- --mode still --scene my-scene
 //
 // 依赖：playwright（npm i）与系统 ffmpeg。可用 CHROMIUM_PATH 指定浏览器可执行文件。
 import { chromium } from 'playwright';
@@ -29,13 +31,16 @@ const args = Object.fromEntries(
 const fps = Number(args.fps || 30);
 const subs = args.subs !== '0';
 const stills = args.stills ? args.stills.split(',').map(Number) : null;
-const out = path.resolve(root, args.out || (stills ? 'out/stills' : 'out/xiaohe-lantern-night.mp4'));
+const still = args.mode === 'still';
+const scene = args.scene || 'bridge-night';
+const defaultOut = stills ? 'out/stills' : still ? `out/still-${scene}.mp4` : 'out/xiaohe-lantern-night.mp4';
+const out = path.resolve(root, args.out || defaultOut);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 page.on('pageerror', (e) => console.error('[page]', e.message));
 const url = pathToFileURL(path.join(root, 'index.html'));
-url.search = `?record=1&subs=${subs ? 1 : 0}`;
+url.search = `?record=1&subs=${subs ? 1 : 0}${still ? `&mode=still&scene=${encodeURIComponent(scene)}` : ''}`;
 await page.goto(url.href);
 await page.waitForFunction(() => window.KV && window.KV.ready === true, null, { timeout: 60000 });
 const duration = await page.evaluate(() => window.KV.DURATION);

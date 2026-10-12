@@ -9,6 +9,16 @@
 ![打铁花](docs/preview-ironflower.jpg)
 ![鼓楼](docs/preview-drumtower.jpg)
 
+## 单图模式：一张 AI 场景图直接出片
+
+![单图模式](docs/preview-still.jpg)
+
+用 Nano Banana / Midjourney 等生成一张静态场景，就能做成 20 秒的镜头：镜头缓慢推进，灯笼呼吸发光，天空放烟花、升孔明灯，运河泛波光，雾气流动，小禾跑进画面、抬头看烟花、挥手。
+
+- 预览：打开 `index.html?mode=still`
+- 导出：`npm run render:still` → `out/still-bridge-night.mp4`
+- 换自己的图：把图片放进 `assets/scenes/`，运行 `python3 scripts/detect-lights.py assets/scenes/你的图.png` 自动找灯笼，再按检查图调整生成的 `.js` 里的天空 / 水面多边形，打开 `index.html?mode=still&scene=你的图` 预览
+
 ## 快速开始
 
 **直接看**：双击 `index.html` 用浏览器打开即可，不需要服务器。
@@ -42,9 +52,12 @@ src/
   fx.js                 灯笼摇曳与光晕、烟花、打铁花、鼓声、孔明灯、水面波光
   girl.js               主角小禾：袄裙 + 双丫髻，2D 骨骼（髋-膝-踝 / 肩-肘-腕 / 颈-头）跑步循环
   main.js               时间线、走位、镜头、逐帧合成、字幕
-scripts/render-video.mjs  Playwright 逐帧截图 + ffmpeg 合成 MP4
+  still.js              单图模式：静态场景图 + 镜头推进 + 动态灯光/烟花/水波/雾 + 角色
+scripts/render-video.mjs  Playwright 逐帧截图 + ffmpeg 合成 MP4（--mode still 渲染单图模式）
+scripts/detect-lights.py  从场景图中自动检测灯笼位置，生成单图模式配置
 assets/layers/          放入同名 PNG 即可替换程序化图层（见 docs/pipeline.md）
 assets/character/       放入角色序列帧 + manifest.js 即可替换程序化角色
+assets/scenes/          单图模式的场景图与配置（bridge-night：Nano Banana 生成的运河石桥夜景）
 docs/
   prompts.md            AI 绘图 Prompt 包：全景、分层、角色设定/拆件/表情、道具特效
   assets.md             去哪里找好看的素材：AI 出图、约画师、付费/免费素材、授权速查

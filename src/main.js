@@ -84,6 +84,7 @@
     ctx.restore();
   }
 
+  KV.drawText = text;
   KV.options = { subs: true };
 
   KV.renderAt = function (t) {
@@ -211,8 +212,13 @@
     canvas.height = H;
     KV.ctx = canvas.getContext('2d');
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    KV.build();
-    await KV.loadImageLayers();
+    if (params.get('mode') === 'still') {
+      // 单图模式：一张 AI 生成的静态场景 + 镜头推进 + 动态灯光/烟花/水波 + 角色
+      await KV.still.init(params.get('scene'));
+    } else {
+      KV.build();
+      await KV.loadImageLayers();
+    }
     await KV.loadCharacterSprites();
     KV.ready = true;
     if (params.get('record') === '1') {

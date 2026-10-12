@@ -135,7 +135,26 @@ ffmpeg -i out/xiaohe-lantern-night.mp4 -i bgm.mp3 -i drum.wav \
   -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -shortest out/xiaohe-final.mp4
 ```
 
-## 6. 推荐迭代顺序
+## 6. 单图模式（一张 AI 场景图 → 一个镜头）
+
+适合透视构图、没法做横向卷轴的图（比如正对石桥的一点透视画面）。
+
+1. 场景图放进 `assets/scenes/`
+2. `python3 scripts/detect-lights.py assets/scenes/xxx.png`：自动检测红灯笼和孔明灯，生成 `assets/scenes/xxx.js` 和检查图 `out/xxx-lights.jpg`
+3. 打开 `xxx.js` 手动调三项（都是图像像素坐标）：
+   - `sky`：天空多边形，烟花和新升起的孔明灯只会画在里面，不会盖住屋顶
+   - `water`：水面多边形，用于波光和烟花倒影；没有水就留一个零面积三角形
+   - `walkY`：小禾脚底所在的高度（选画面前景的地面）
+4. 预览 `index.html?mode=still&scene=xxx`，导出 `npm run render -- --mode still --scene xxx`
+
+镜头时长、字幕和角色走位在 `src/still.js` 顶部修改。几个镜头可以用 ffmpeg 拼接：
+
+```bash
+printf "file 'still-bridge-night.mp4'\nfile 'xiaohe-lantern-night.mp4'\n" > out/list.txt
+ffmpeg -f concat -safe 0 -i out/list.txt -c copy out/combined.mp4
+```
+
+## 7. 推荐迭代顺序
 
 1. 用 `docs/prompts.md` §1 出 3~5 张全景概念图，选定色调
 2. 先替换 **远景三层**（`mountains` / `city_far` / `city_mid`），风格提升最明显、对齐要求最低
