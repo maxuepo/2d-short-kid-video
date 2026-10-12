@@ -505,6 +505,14 @@ def build_lanterns(placed):
         for i in range(n):
             fx = (i + 0.5) / n - 0.5
             lantern_obj('red' if rnd.random() < 0.65 else 'amber', x + fx * w * 0.85, y - 0.9, a['eave'] - 0.35, c)
+    # 石桥栏杆上的灯笼（桥头、桥身各一对，照亮桥面和水面）
+    b = L['bridge']
+    for fx in (0.12, 0.35, 0.65, 0.88):
+        x = b['x0'] + (b['x1'] - b['x0']) * fx
+        lantern_obj('amber' if fx in (0.12, 0.88) else 'red', x, b['y'] - b['width'] / 2 + 0.15, deck_z(x) + 1.7, c)
+    # 运河两岸柳树下的灯笼
+    for x in (L['canal']['x0'] - 2.5, L['canal']['x1'] + 2.5):
+        lantern_obj('red', x, -0.8, 3.2, c)
     # 楼与楼之间的灯笼串
     for xa, xb in L['lanternStrings']:
         za, zb = 4.6, 4.6
