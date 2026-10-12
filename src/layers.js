@@ -282,7 +282,7 @@
     const w = KV.layerWidth(f);
     const c = KV.canvas(w, H);
     const ctx = c.getContext('2d');
-    A.skyline(ctx, w, base, o, KV.rng(seed));
+    A.roofSea(ctx, w, base, o, KV.rng(seed));
     return blur ? KV.blurred(c, blur) : c;
   }
 
@@ -423,8 +423,8 @@
     L.sky = sky();
     L.clouds = clouds();
     L.mountains = mountains();
-    L.cityFar = city(KV.PARALLAX.cityFar, 880, { wMin: 90, wMax: 190, hMin: 150, hMax: 330, over: 24, roofH: 40, wall: '#2c2752', roof: '#211d42', windows: 0.1, tower: 0.14 }, 21, 2);
-    L.cityMid = city(KV.PARALLAX.cityMid, 905, { wMin: 160, wMax: 300, hMin: 200, hMax: 420, over: 36, roofH: 62, wall: '#3c3260', roof: '#2a2448', windows: 0.16, winW: 12, winH: 16, tower: 0.12 }, 22, 1);
+    L.cityFar = city(KV.PARALLAX.cityFar, 865, { rows: 3, rowGap: 30, wMin: 70, wMax: 150, wallMin: 28, wallMax: 56, roofH: 30, over: 22, wall: '#2a2550', roof: '#1f1b3e', haze: '#6a5288', treeCol: '#1e2440', windows: 0.55, tower: 0.12, pagoda: 0.03, tree: 0.12, lanterns: 0.15 }, 21, 2);
+    L.cityMid = city(KV.PARALLAX.cityMid, 905, { rows: 3, rowGap: 46, wMin: 120, wMax: 230, wallMin: 44, wallMax: 84, roofH: 48, over: 34, wall: '#382e5c', roof: '#272246', haze: '#7a5c8c', treeCol: '#232a46', windows: 0.6, tower: 0.16, pagoda: 0.03, tree: 0.1, lanterns: 0.3 }, 22, 1);
     const street_ = KV.canvas(KV.WORLD, H);
     street(street_.getContext('2d'), shops);
     L.street = street_;

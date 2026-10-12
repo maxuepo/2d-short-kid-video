@@ -20,6 +20,33 @@
     return { half, rh, tip };
   };
 
+  // 沿檐口曲线等距取点（用于瓦当）
+  A.eavePoints = function (cx, y, w, tip, step) {
+    step = step || 9;
+    const half = w / 2;
+    const q = (p0, p1, p2, t) => (1 - t) * (1 - t) * p0 + 2 * (1 - t) * t * p1 + t * t * p2;
+    const raw = [];
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20;
+      raw.push([q(cx - half - 4, cx - half + w * 0.08, cx - half + w * 0.2, t), q(y - tip, y + 5, y + 3, t)]);
+    }
+    for (let x = cx - half + w * 0.2; x <= cx + half - w * 0.2; x += 4) raw.push([x, y + 3]);
+    for (let i = 20; i >= 0; i--) {
+      const t = i / 20;
+      raw.push([q(cx + half + 4, cx + half - w * 0.08, cx + half - w * 0.2, t), q(y - tip, y + 5, y + 3, t)]);
+    }
+    const out = [raw[0]];
+    let acc = 0;
+    for (let i = 1; i < raw.length; i++) {
+      acc += Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
+      if (acc >= step) {
+        out.push(raw[i]);
+        acc = 0;
+      }
+    }
+    return out;
+  };
+
   A.roof = function (ctx, cx, y, w, h, o) {
     o = o || {};
     ctx.save();
@@ -38,16 +65,29 @@
       ctx.restore();
       return;
     }
-    // 瓦垄
+    // 筒瓦瓦垄：暗槽 + 亮脊，表现圆筒瓦的体积
     ctx.clip();
-    ctx.strokeStyle = 'rgba(12,12,28,0.45)';
-    ctx.lineWidth = 2;
     for (let x = cx - half - 12; x <= cx + half + 12; x += 9) {
       const k = (x - cx) / half;
       ctx.beginPath();
       ctx.moveTo(x, y + 6);
       ctx.quadraticCurveTo(x - k * 4, y - h * 0.45, cx + k * rh, y - h);
+      ctx.strokeStyle = 'rgba(10,10,26,0.5)';
+      ctx.lineWidth = 3;
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + 3.5, y + 6);
+      ctx.quadraticCurveTo(x + 3.5 - k * 4, y - h * 0.45, cx + k * rh + 3.5 * (rh / half), y - h);
+      ctx.strokeStyle = 'rgba(150,150,190,0.28)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+    // 屋面上的水彩斑驳
+    const hr = KV.rng(Math.floor(cx * 7 + y));
+    for (let i = 0; i < 5; i++) {
+      const px = cx + (hr() - 0.5) * w * 0.8;
+      const py = y - hr() * h;
+      KV.glow(ctx, px, py, 20 + hr() * 40, hr() < 0.5 ? '120,110,160' : '20,15,40', 0.18);
     }
     // 檐下暖光
     const ug = ctx.createLinearGradient(0, y - 18, 0, y + 5);
@@ -56,9 +96,24 @@
     ctx.fillStyle = ug;
     ctx.fillRect(cx - half - 10, y - 18, w + 20, 24);
     ctx.restore();
+    // 檐口瓦当：沿檐线排列的圆形瓦头
+    const pts = A.eavePoints(cx, y, w, tip);
+    for (let i = 0; i < pts.length; i++) {
+      const [px, py] = pts[i];
+      ctx.fillStyle = '#2c2c46';
+      ctx.beginPath();
+      ctx.arc(px, py + 1.5, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,190,130,0.55)';
+      ctx.beginPath();
+      ctx.arc(px, py + 2.4, 2, 0, Math.PI);
+      ctx.fill();
+    }
     // 正脊与鸱吻
     ctx.fillStyle = o.ridgeColor || '#1d1d31';
     ctx.fillRect(cx - rh - 6, y - h - 7, 2 * rh + 12, 9);
+    ctx.fillStyle = 'rgba(160,150,200,0.35)';
+    ctx.fillRect(cx - rh - 6, y - h - 7, 2 * rh + 12, 2);
     for (const s of [-1, 1]) {
       const ex = cx + s * (rh + 6);
       ctx.beginPath();
@@ -115,22 +170,139 @@
     g.addColorStop(1, warm ? '#e08a45' : '#9a6a52');
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, h);
-    ctx.strokeStyle = 'rgba(60,28,18,0.85)';
+    // 窗棂：方格内再套小方框（灯笼锦）
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    const s = 15;
+    const nx = Math.max(1, Math.round(w / s));
+    const ny = Math.max(1, Math.round(h / s));
+    const cw = w / nx;
+    const ch = h / ny;
+    ctx.strokeStyle = 'rgba(70,32,20,0.9)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    const s = 11;
-    for (let xx = x + s; xx < x + w; xx += s) {
-      ctx.moveTo(xx, y);
-      ctx.lineTo(xx, y + h);
+    for (let i = 1; i < nx; i++) {
+      ctx.moveTo(x + i * cw, y);
+      ctx.lineTo(x + i * cw, y + h);
     }
-    for (let yy = y + s; yy < y + h; yy += s) {
-      ctx.moveTo(x, yy);
-      ctx.lineTo(x + w, yy);
+    for (let j = 1; j < ny; j++) {
+      ctx.moveTo(x, y + j * ch);
+      ctx.lineTo(x + w, y + j * ch);
     }
     ctx.stroke();
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) ctx.rect(x + i * cw + 4, y + j * ch + 4, cw - 8, ch - 8);
+    ctx.stroke();
+    // 窗纸上的人影/盆景剪影，偶尔出现
+    if (warm && (Math.floor(x * 13 + y) % 5 === 0)) {
+      ctx.fillStyle = 'rgba(120,60,40,0.35)';
+      ctx.beginPath();
+      ctx.arc(x + w * 0.4, y + h * 0.5, Math.min(w, h) * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(x + w * 0.4 - Math.min(w, h) * 0.18, y + h * 0.6, Math.min(w, h) * 0.36, h * 0.4);
+    }
+    ctx.restore();
     ctx.strokeStyle = '#3a1c14';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 5;
     ctx.strokeRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255,200,140,0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+  };
+
+  // 彩画额枋：青绿底 + 两端旋子花 + 中间枋心
+  A.paintedBeam = function (ctx, x, y, w, h) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, '#3f7c80');
+    g.addColorStop(1, '#25505a');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#d9b25a';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    const r = h * 0.36;
+    for (const cx of [x + h * 0.8, x + w - h * 0.8]) {
+      ctx.fillStyle = '#2b4c86';
+      ctx.beginPath();
+      ctx.arc(cx, y + h / 2, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#e8c56a';
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a) * r * 0.62, y + h / 2 + Math.sin(a) * r * 0.62, r * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (w > h * 5) {
+      const mx = x + h * 1.8;
+      const mw = w - h * 3.6;
+      ctx.fillStyle = '#4f8f86';
+      ctx.beginPath();
+      ctx.moveTo(mx, y + h / 2);
+      ctx.lineTo(mx + h * 0.4, y + 2.5);
+      ctx.lineTo(mx + mw - h * 0.4, y + 2.5);
+      ctx.lineTo(mx + mw, y + h / 2);
+      ctx.lineTo(mx + mw - h * 0.4, y + h - 2.5);
+      ctx.lineTo(mx + h * 0.4, y + h - 2.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  };
+
+  // 斗拱：檐下一排小斗与拱臂
+  A.brackets = function (ctx, x0, x1, y, h) {
+    ctx.fillStyle = 'rgba(15,10,25,0.55)';
+    ctx.fillRect(x0, y, x1 - x0, h);
+    for (let x = x0 + 10; x < x1 - 8; x += 24) {
+      ctx.fillStyle = '#8f3026';
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y + h * 0.45);
+      ctx.quadraticCurveTo(x - 10, y + h * 0.85, x - 6, y + h * 0.85);
+      ctx.lineTo(x + 6, y + h * 0.85);
+      ctx.quadraticCurveTo(x + 10, y + h * 0.85, x + 10, y + h * 0.45);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#3d7570';
+      ctx.fillRect(x - 4, y + h * 0.1, 8, h * 0.38);
+      ctx.fillRect(x - 3, y + h * 0.82, 6, h * 0.18);
+      ctx.fillStyle = 'rgba(255,200,120,0.5)';
+      ctx.fillRect(x - 10, y + h * 0.45, 20, 1);
+    }
+  };
+
+  // 柱础
+  A.columnBase = function (ctx, cx, base, w) {
+    ctx.fillStyle = '#8a7a74';
+    ctx.beginPath();
+    ctx.moveTo(cx - w * 0.8, base);
+    ctx.quadraticCurveTo(cx - w * 0.9, base - 9, cx - w * 0.55, base - 10);
+    ctx.lineTo(cx + w * 0.55, base - 10);
+    ctx.quadraticCurveTo(cx + w * 0.9, base - 9, cx + w * 0.8, base);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,210,160,0.35)';
+    ctx.fillRect(cx - w * 0.55, base - 10, w * 1.1, 2);
+  };
+
+  // 墙面水彩肌理
+  A.plaster = function (ctx, x, y, w, h, seed) {
+    const r = KV.rng(seed);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    for (let i = 0; i < Math.ceil((w * h) / 9000); i++) {
+      const px = x + r() * w;
+      const py = y + r() * h;
+      KV.glow(ctx, px, py, 20 + r() * 50, r() < 0.55 ? '60,30,40' : '255,220,170', 0.12 + r() * 0.08);
+    }
+    ctx.restore();
   };
 
   // 牌匾
@@ -239,6 +411,7 @@
     wg.addColorStop(1, '#c58f62');
     ctx.fillStyle = wg;
     ctx.fillRect(x, wallTop, w, base - wallTop);
+    A.plaster(ctx, x, wallTop, w, base - wallTop, Math.floor(x));
     // 底层敞开铺面：室内暖光
     const ig = ctx.createLinearGradient(0, doorTop, 0, base);
     ig.addColorStop(0, s.blacksmith ? '#ff8a3a' : '#ffcc7a');
@@ -261,12 +434,30 @@
       ctx.fillRect(x + 14, base - 40, w - 28, 3);
       A.goods(ctx, x + 16, w - 32, base - 40, r);
     }
-    // 门额横梁
-    ctx.fillStyle = '#3a1f16';
-    ctx.fillRect(x, doorTop - 16, w, 16);
-    // 立柱
+    // 门帘（半幅布帘，带波浪下摆）
+    ctx.fillStyle = s.bannerColor || '#3b3f7a';
+    ctx.beginPath();
+    ctx.moveTo(x + 14, doorTop);
+    ctx.lineTo(x + w - 14, doorTop);
+    ctx.lineTo(x + w - 14, doorTop + 24);
+    for (let xx = x + w - 14; xx > x + 14; xx -= 18) ctx.quadraticCurveTo(xx - 9, doorTop + 32, Math.max(x + 14, xx - 18), doorTop + 24);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,230,190,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 14, doorTop + 6);
+    ctx.lineTo(x + w - 14, doorTop + 6);
+    ctx.stroke();
+    // 门额：彩画额枋
+    A.paintedBeam(ctx, x, doorTop - 16, w, 16);
+    // 檐下斗拱
+    A.brackets(ctx, x, x + w, wallTop + 2, 16);
+    // 立柱 + 柱础
     A.column(ctx, x + 2, wallTop, base, 12);
     A.column(ctx, x + w - 14, wallTop, base, 12);
+    A.columnBase(ctx, x + 8, base, 10);
+    A.columnBase(ctx, x + w - 8, base, 10);
     if (two) {
       // 二层格窗
       const wy = wallTop + 26;
@@ -277,7 +468,7 @@
       // 腰檐
       A.roof(ctx, x + w / 2, doorTop - 30, w + 26, 30, { tip: 8, ridge: 0.9 });
     } else {
-      const wy = wallTop + 18;
+      const wy = wallTop + 24;
       const wh = doorTop - 34 - wy;
       if (wh > 24) {
         A.lattice(ctx, x + 22, wy, w * 0.22, wh, true);
@@ -566,16 +757,22 @@
       ctx.lineTo(hx - 7, top - 8);
       ctx.closePath();
       ctx.fill();
-      // 红缨
-      ctx.strokeStyle = '#d4232f';
-      ctx.lineWidth = 2.2;
-      for (let k = 0; k < 12; k++) {
-        const s = (k - 5.5) / 5.5;
+      // 红缨：细密的丝穗从金箍处垂下散开
+      const tr = KV.rng(i * 17 + 5);
+      ctx.lineCap = 'round';
+      for (let k = 0; k < 26; k++) {
+        const u = (k / 25 - 0.5) * 2;
+        const len = 20 + tr() * 10 - Math.abs(u) * 5;
+        const ex = hx + u * 9 + (tr() - 0.5) * 3;
+        ctx.strokeStyle = ['#c8202c', '#e0343a', '#a3141f', '#f04a48'][k % 4];
+        ctx.lineWidth = 0.9 + tr() * 0.6;
         ctx.beginPath();
-        ctx.moveTo(hx, top + 2);
-        ctx.quadraticCurveTo(hx + s * 14, top + 10, hx + s * 12 - 2, top + 26 + Math.abs(s) * -6);
+        ctx.moveTo(hx + u * 2, top + 2);
+        ctx.bezierCurveTo(hx + u * 6, top + 6, ex, top + len * 0.6, ex - 1.5, top + len);
         ctx.stroke();
       }
+      ctx.fillStyle = '#d9b25a';
+      ctx.fillRect(hx - 3.5, top - 1, 7, 4);
     }
     // 雁翎刀（斜靠）
     for (const [bx, by, ang] of [
@@ -684,6 +881,95 @@
       ctx.beginPath();
       ctx.arc(px, base - 128, 13, -Math.PI / 2 - dir * 0.2, Math.PI / 2 - dir * 0.2, dir < 0);
       ctx.stroke();
+    }
+  };
+
+  // 远景「屋顶之海」：多排错落的坡屋顶、楼阁、宝塔和树冠，后排更淡（空气透视）
+  A.roofSea = function (ctx, width, base, o, r) {
+    for (let row = o.rows - 1; row >= 0; row--) {
+      const b = base - row * o.rowGap;
+      const f = row / Math.max(1, o.rows - 1);
+      const wall = KV.mix(o.wall, o.haze, f * 0.55);
+      const roof = KV.mix(o.roof, o.haze, f * 0.5);
+      const light = 0.9 - f * 0.45;
+      let x = -80 + r() * 60;
+      while (x < width + 80) {
+        const w = o.wMin + r() * (o.wMax - o.wMin);
+        const kind = r();
+        if (kind < o.tree) {
+          // 树冠
+          ctx.fillStyle = KV.mix(o.treeCol, o.haze, f * 0.5);
+          const tr = w * 0.32;
+          for (let i = 0; i < 5; i++) {
+            ctx.beginPath();
+            ctx.arc(x + w * 0.2 + r() * w * 0.6, b - o.wallMax * 0.6 - r() * tr * 0.8, tr * (0.5 + r() * 0.4), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillRect(x + w * 0.2, b - o.wallMax * 0.6, w * 0.6, o.wallMax * 0.6 + 60);
+          x += w * 0.6;
+          continue;
+        }
+        const h = o.wallMin + r() * (o.wallMax - o.wallMin);
+        const top = b - h;
+        ctx.fillStyle = wall;
+        ctx.fillRect(x, top, w, h + 80);
+        // 檐下一排窗光 / 门光
+        if (r() < o.windows) {
+          const n = Math.max(1, Math.floor(w / 26));
+          for (let i = 0; i < n; i++) {
+            if (r() < 0.35) continue;
+            ctx.fillStyle = `rgba(255,${175 + r() * 45},${95 + r() * 40},${light * (0.6 + r() * 0.4)})`;
+            ctx.fillRect(x + 8 + i * ((w - 16) / n), top + h * 0.22, (w - 16) / n - 6, h * 0.36);
+          }
+        }
+        let rt = top;
+        A.roof(ctx, x + w / 2, rt + 3, w + o.over, o.roofH, { simple: true, color: roof, tip: o.roofH * 0.3 });
+        // 楼阁：再叠一到两层
+        if (kind > 1 - o.tower) {
+          const levels = 1 + Math.floor(r() * 2);
+          let lw = w * 0.7;
+          for (let k = 0; k < levels; k++) {
+            const lh = o.wallMin * 0.8;
+            rt = rt - o.roofH * 0.7 - lh + 6;
+            ctx.fillStyle = wall;
+            ctx.fillRect(x + w / 2 - lw * 0.4, rt, lw * 0.8, lh + o.roofH * 0.7);
+            ctx.fillStyle = `rgba(255,190,110,${light * 0.85})`;
+            ctx.fillRect(x + w / 2 - lw * 0.3, rt + lh * 0.25, lw * 0.6, lh * 0.4);
+            A.roof(ctx, x + w / 2, rt + 3, lw + o.over * 0.7, o.roofH * 0.9, { simple: true, color: roof, tip: o.roofH * 0.3 });
+            lw *= 0.78;
+          }
+        } else if (kind > 1 - o.tower - o.pagoda) {
+          // 宝塔
+          let py = rt - o.roofH * 0.6;
+          let pw = w * 0.42;
+          for (let k = 0; k < 6; k++) {
+            const lh = o.roofH * 0.75;
+            ctx.fillStyle = wall;
+            ctx.fillRect(x + w / 2 - pw * 0.3, py - lh, pw * 0.6, lh + 4);
+            ctx.fillStyle = `rgba(255,190,110,${light * 0.85})`;
+            ctx.fillRect(x + w / 2 - 2.5, py - lh * 0.7, 5, lh * 0.35);
+            A.roof(ctx, x + w / 2, py - lh + 3, pw + 10, o.roofH * 0.45, { simple: true, color: roof, tip: o.roofH * 0.2 });
+            py -= lh + o.roofH * 0.25;
+            pw *= 0.88;
+          }
+        }
+        // 屋檐下的小灯笼
+        if (r() < o.lanterns) {
+          for (const fx of [0.2, 0.8]) {
+            const lx = x + w * fx;
+            const ly = top + 10;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            KV.glow(ctx, lx, ly, o.roofH * 0.7, '255,140,60', 0.45 * light);
+            ctx.restore();
+            ctx.fillStyle = `rgba(230,70,40,${light})`;
+            ctx.beginPath();
+            ctx.ellipse(lx, ly, o.roofH * 0.1, o.roofH * 0.12, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        x += w * (0.72 + r() * 0.25);
+      }
     }
   };
 

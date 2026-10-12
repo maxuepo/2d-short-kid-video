@@ -44,9 +44,10 @@ src/
   main.js               时间线、走位、镜头、逐帧合成、字幕
 scripts/render-video.mjs  Playwright 逐帧截图 + ffmpeg 合成 MP4
 assets/layers/          放入同名 PNG 即可替换程序化图层（见 docs/pipeline.md）
+assets/character/       放入角色序列帧 + manifest.js 即可替换程序化角色
 docs/
   prompts.md            AI 绘图 Prompt 包：全景、分层、角色设定/拆件/表情、道具特效
-  assets.md             免费素材来源、搜索词、授权速查与登记表
+  assets.md             去哪里找好看的素材：AI 出图、约画师、付费/免费素材、授权速查
   pipeline.md           分镜表、图层尺寸规格、角色拆件与骨骼、光影配方、出片与配乐
 ```
 
@@ -68,5 +69,7 @@ docs/
 1. 按 [`docs/prompts.md`](docs/prompts.md) 生成对应图层
 2. 按 [`docs/pipeline.md` §2](docs/pipeline.md#2-图层规格视差系数--成品尺寸) 的尺寸导出 PNG，放进 `assets/layers/`（如 `city_mid.png`，4824×1080）
 3. 刷新页面即可生效。缺的图层自动回退到程序化版本（浏览器控制台里缺失文件的 `ERR_FILE_NOT_FOUND` 提示属正常现象）
+
+角色同理：把序列帧 PNG 放进 `assets/character/`，复制 `manifest.example.js` 为 `manifest.js` 并填好文件名（见 [`docs/pipeline.md` §3.4](docs/pipeline.md)）。
 
 素材来源与授权注意事项见 [`docs/assets.md`](docs/assets.md)。

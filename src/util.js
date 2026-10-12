@@ -107,6 +107,14 @@
     ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
   };
 
+  // 两个 #rrggbb 颜色线性混合
+  KV.mix = function (a, b, t) {
+    const pa = parseInt(a.slice(1), 16);
+    const pb = parseInt(b.slice(1), 16);
+    const c = (sh) => Math.round(KV.lerp((pa >> sh) & 255, (pb >> sh) & 255, t));
+    return `rgb(${c(16)},${c(8)},${c(0)})`;
+  };
+
   // 将画布整体高斯模糊（用于远景/前景的移轴景深）
   KV.blurred = function (src, px) {
     const c = KV.canvas(src.width, src.height);

@@ -42,7 +42,8 @@
       cam: KV.clamp(x - 0.4 * W, 0, KV.WORLD - W),
       lookUp: KV.smooth(15.6, 16.6, t) * (1 - KV.smooth(19.2, 20, t)) + 0.5 * KV.smooth(31.2, 32, t),
       wave: KV.smooth(31.2, 32, t),
-      scale: 1.05,
+      happy: KV.smooth(31.2, 32, t),
+      scale: 1.2,
       tint: 0,
     };
   };
@@ -212,6 +213,7 @@
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     KV.build();
     await KV.loadImageLayers();
+    await KV.loadCharacterSprites();
     KV.ready = true;
     if (params.get('record') === '1') {
       document.body.classList.add('record');

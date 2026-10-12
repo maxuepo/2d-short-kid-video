@@ -51,18 +51,18 @@
 
 ```
 hip (0,0)
-├── thigh_far   长 40 ─ knee ─ shin_far 长 38 ─ ankle ─ shoe_far
-├── thigh_near  长 40 ─ knee ─ shin_near 长 38 ─ ankle ─ shoe_near
+├── thigh_far   长 30 ─ knee ─ shin_far 长 29 ─ ankle ─ shoe_far
+├── thigh_near  长 30 ─ knee ─ shin_near 长 29 ─ ankle ─ shoe_near
 ├── skirt       （随两膝位置变形 + 后摆飘动）
-└── spine（整体前倾 0~0.16 rad）
-    ├── torso_jacket / belt / sash_tail ×2
-    ├── shoulder (0,-50)
-    │   ├── upper_arm_far  长 27 ─ elbow ─ forearm_far 长 25 + sleeve_far ─ wrist ─ hand_far
-    │   └── upper_arm_near 长 27 ─ elbow ─ forearm_near 长 25 + sleeve_near ─ wrist ─ hand_near
-    └── neck (2,-58) ─ head
-        ├── hair_back, bun_back, ribbon ×2（飘带）
-        ├── face, eye, brow, blush, mouth（表情可替换）
-        └── bangs, bun_front, flower
+└── spine（整体前倾 0~0.14 rad）
+    ├── torso_jacket / belt / jade_pendant（随跑动摆荡）/ sash_tail ×2
+    ├── shoulder (1,-40)
+    │   ├── upper_arm_far  长 20 ─ elbow ─ forearm_far 长 18 + sleeve_far ─ wrist ─ hand_far
+    │   └── upper_arm_near 长 20 ─ elbow ─ forearm_near 长 18 + sleeve_near ─ wrist ─ hand_near
+    └── neck (3,-47) ─ head（Q 版：头约占身高 40%）
+        ├── hair_long（脑后垂发）, ribbon ×2（飘带）, bun_back
+        ├── face, eye（含眨眼、弯笑眼）, brow, blush, nose, mouth（表情可替换）
+        └── side_lock（鬓发）, bangs, bun_front, bow, flowers
 ```
 
 ### 3.2 部件清单（PSD 图层命名建议）
@@ -83,11 +83,22 @@ hip (0,0)
 
 ### 3.3 跑步循环参数（可直接搬到 Spine / DragonBones / Godot）
 
-- 一个完整步态周期前进 **150 px**，所以腿部相位 = 位移 / 150 × 2π，脚不会打滑
+- 一个完整步态周期前进 **150 px**（角色在画面中按 1.2 倍绘制），所以腿部相位 = 位移 / 150 × 2π，脚不会打滑
 - 大腿摆角 `0.1 + 0.62·sin φ`（向前为正），两腿相差 π
-- 膝弯 `0.2 + 1.15·max(0, cos(φ − 0.35))`：摆动腿屈膝，支撑腿伸直
+- 膝弯 `0.05 + 0.2 + 1.15·max(0, cos(φ − 0.35))`：摆动腿屈膝，支撑腿伸直
 - 手臂与对侧腿反向摆动，幅度 0.85 rad
 - 自动贴地：每帧取两只脚中更低的那只，把髋部往下放到脚刚好着地，起伏感就自然出来了
+
+### 3.4 用 AI 生成/画师绘制的序列帧替换角色
+
+程序化角色有上限。想要真正好看的角色，最省事的办法是准备一套**序列帧 PNG**，项目会自动换上：
+
+1. 用 `docs/prompts.md` §3 先出一张满意的角色设定图（或请画师画），锁定形象
+2. 用同一角色出 8 帧跑步循环 + 站立 + 抬头 + 挥手（MJ `--cref`/`--oref`，SD 用 IP-Adapter + OpenPose 控制姿势）
+3. 抠成透明 PNG，统一画布尺寸，脚底对齐同一位置
+4. 放进 `assets/character/`，复制 `manifest.example.js` 为 `manifest.js` 并填文件名
+
+跑步帧会按角色实际位移自动换帧，脚不会打滑；桥上会切到 `lookUp`，结尾切到 `wave`。
 
 ## 4. HD-2D × 吉卜力光影配方（对应代码）
 
