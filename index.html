@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>元宵灯夜 · 小禾进城</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05040c;
+        overflow: hidden;
+        font-family: 'PingFang SC', 'Microsoft YaHei', 'WenQuanYi Zen Hei', sans-serif;
+      }
+      #stage {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        width: min(100vw, calc(100vh * 16 / 9));
+        height: min(100vh, calc(100vw * 9 / 16));
+        display: block;
+      }
+      #hint {
+        position: fixed;
+        left: 16px;
+        top: 12px;
+        color: #f6dcb4;
+        font-size: 13px;
+        background: rgba(10, 6, 20, 0.55);
+        padding: 6px 10px;
+        border-radius: 6px;
+        transition: opacity 1s;
+      }
+      #hint.hide {
+        opacity: 0;
+      }
+      #progress {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+      }
+      #bar {
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, #ffb45a, #ff6a3d);
+      }
+      body.record #hint,
+      body.record #progress {
+        display: none;
+      }
+      body.record #stage {
+        width: 1920px;
+        height: 1080px;
+        inset: auto;
+        left: 0;
+        top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <div id="hint">空格 暂停/播放 · ← → 快退/快进 2 秒 · S 字幕开关 · 点击底部进度条跳转</div>
+    <div id="progress"><div id="bar"></div></div>
+    <script src="src/util.js"></script>
+    <script src="src/architecture.js"></script>
+    <script src="src/layers.js"></script>
+    <script src="src/fx.js"></script>
+    <script src="src/girl.js"></script>
+    <script src="src/main.js"></script>
+    <script>
+      KV.start();
+    </script>
+  </body>
+</html>
