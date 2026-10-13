@@ -4,6 +4,8 @@
 
 画风目标是《八方旅人》式 HD-2D 体积光与景深，加上吉卜力式手绘水彩。整片由浏览器 Canvas **程序化绘制**，不需要任何外部素材就能直接播放和导出 MP4。之后可以按图层逐步换成 AI 生成或手绘的高质量素材。
 
+> **在本地继续开发？先看 [`HANDOFF.md`](HANDOFF.md)（项目交接说明：三条技术路线、当前进度、下一步、常用命令）。** 当前主线是 3D 路线，见 [`blender/README.md`](blender/README.md) 与 [`docs/3d/asset-list.md`](docs/3d/asset-list.md)。
+
 ![城门](docs/preview-gate.jpg)
 ![石拱桥看烟花](docs/preview-bridge.jpg)
 ![打铁花](docs/preview-ironflower.jpg)

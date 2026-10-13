@@ -34,6 +34,10 @@
 | `--preview out/dir --frames 60,330,600` | Cycles CPU 渲几张关键帧（没有显卡也能跑） |
 | `--topview out/top.png` | 俯视布局图（带资产编号） |
 | `--animatic out/animatic.mp4 --step 3 --percent 25` | 低清动态分镜，检查节奏用 |
+| `--models out/test_models` | 从别的目录读取模型（默认 `assets/models`） |
+| `--autocolor all` / `off` | 所有模型统一自动上色 / 关闭自动上色（默认只给没贴图的白模上色） |
+
+没有真模型时，可以用 `blender -b -P blender/make_test_whitemodels.py -- out/test_models` 生成假白模来测试自动上色。
 
 ## 模型替换规则
 
