@@ -16,6 +16,8 @@
   blender -b -P blender/build_scene.py -- --topview out/blender_preview/top.png
   # 低清动态分镜（Cycles CPU，每 3 帧取 1 帧，约 10fps）
   blender -b -P blender/build_scene.py -- --animatic out/animatic.mp4 --step 3 --percent 25
+  # 白模自动上色：默认对没有贴图的模型自动生效；--autocolor all 强制所有模型统一上色，--autocolor off 关闭
+  # --models 指定模型目录（默认 assets/models）
 
 坐标：X 沿街向右，Y 向画面深处（建筑正立面在 y=0，朝向 -Y 方向的相机），Z 向上，单位米。
 """
@@ -41,7 +43,6 @@ def _root():
 
 ROOT = _root()
 L = json.load(open(os.path.join(ROOT, 'blender', 'layout.json'), encoding='utf-8'))
-MODELS = os.path.join(ROOT, 'assets', 'models')
 ARGV = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 
 
@@ -52,6 +53,7 @@ def arg(name, default=None):
     return default
 
 
+MODELS = os.path.join(ROOT, arg('--models')) if isinstance(arg('--models'), str) else os.path.join(ROOT, 'assets', 'models')
 FPS = L['fps']
 FRAMES = int(L['duration'] * FPS)
 PREVIEW = bool(arg('--preview') or arg('--topview'))
@@ -334,6 +336,254 @@ def greybox(a, aid, x, y, collection):
     return root
 
 
+# ---------------------------------------------------------------- 白模自动上色（水彩风）
+# 混元3D 本地生成的模型只有形状没有颜色。这里按「高度 + 面朝向」自动分配颜色：
+#   朝上的斜面 → 青灰瓦；竖直面 → 粉墙（带水彩斑驳）；最底一圈 → 石台基；朝下的面 → 檐下暗木；
+#   檐口下方一圈 → 红木额枋；凹进去的地方（门洞、窗、铺面）→ 暗部 + 夜里透出暖光；轮廓边缘加深（水彩积色）。
+# 调色板可以在 layout.json 的 "autocolor" 里按类型覆盖。
+AUTOCOLOR = {
+    'building': {
+        'wall': [(0.86, 0.80, 0.70), (0.74, 0.66, 0.58)],
+        'roof': [(0.20, 0.23, 0.30), (0.30, 0.33, 0.40)],
+        'base': (0.48, 0.45, 0.44),
+        'under': (0.28, 0.13, 0.09),
+        'trim': (0.55, 0.14, 0.10),
+        'ink': (0.16, 0.10, 0.12),
+        'glow': (1.0, 0.56, 0.26),
+        'glowStrength': 3.0,
+    },
+    'gate': {
+        'wall': [(0.55, 0.50, 0.52), (0.45, 0.40, 0.42)],
+        'upper': [(0.62, 0.16, 0.12), (0.50, 0.12, 0.10)],
+        'roof': [(0.20, 0.23, 0.30), (0.30, 0.33, 0.40)],
+        'base': (0.40, 0.37, 0.38),
+        'under': (0.28, 0.13, 0.09),
+        'trim': (0.20, 0.38, 0.40),
+        'ink': (0.16, 0.10, 0.12),
+        'glow': (1.0, 0.56, 0.26),
+        'glowStrength': 2.0,
+    },
+    'tree': {'trunk': (0.24, 0.16, 0.12), 'ink': (0.08, 0.10, 0.08)},
+    'character': {
+        'bands': [(0.0, (0.80, 0.18, 0.20)), (0.07, (0.95, 0.92, 0.86)), (0.13, (0.30, 0.60, 0.58)), (0.42, (0.93, 0.62, 0.74)),
+                  (0.62, (1.0, 0.86, 0.76)), (0.86, (0.16, 0.10, 0.10))],
+        'ink': (0.25, 0.12, 0.12),
+    },
+    'stone': {'wall': [(0.60, 0.58, 0.57), (0.50, 0.49, 0.50)], 'top': (0.70, 0.68, 0.66), 'ink': (0.18, 0.16, 0.18)},
+    'prop': {'ink': (0.15, 0.10, 0.10)},
+}
+for _k, _v in L.get('autocolor', {}).items():
+    AUTOCOLOR.setdefault(_k, {}).update({kk: (tuple(vv) if isinstance(vv, list) and vv and not isinstance(vv[0], list) else vv) for kk, vv in _v.items()})
+
+
+def color_family(a):
+    k = a['kind']
+    if k in ('shop', 'shop2', 'stall', 'connector', 'arch', 'scaffold'):
+        return 'building'
+    if k == 'gate':
+        return 'gate'
+    if k in ('character', 'npc'):
+        return 'character'
+    if k == 'tree':
+        return 'tree'
+    if k == 'bridge':
+        return 'stone'
+    return 'prop'
+
+
+def has_texture(objs):
+    for o in objs:
+        for slot in getattr(o, 'material_slots', []):
+            m = slot.material
+            if m and m.node_tree and any(n.type == 'TEX_IMAGE' and n.image for n in m.node_tree.nodes):
+                return True
+    return False
+
+
+def write_height_attribute(meshes, zmin, zmax):
+    """把每个顶点在整个模型里的相对高度（0=底，1=顶）写成顶点属性 hfrac，材质读它来分层上色。"""
+    import numpy as np
+
+    span = max(zmax - zmin, 1e-6)
+    for o in meshes:
+        me = o.data
+        n = len(me.vertices)
+        co = np.empty(n * 3, dtype=np.float32)
+        me.vertices.foreach_get('co', co)
+        co = co.reshape(n, 3)
+        mw = np.array(o.matrix_world, dtype=np.float32)
+        wz = co @ mw[2, :3] + mw[2, 3]
+        h = np.clip((wz - zmin) / span, 0, 1).astype(np.float32)
+        attr = me.attributes.get('hfrac') or me.attributes.new('hfrac', 'FLOAT', 'POINT')
+        attr.data.foreach_set('value', h)
+
+
+class _NT:
+    """简化节点连线的小工具。"""
+
+    def __init__(self, m):
+        self.nt = m.node_tree
+        for n in list(self.nt.nodes):
+            self.nt.nodes.remove(n)
+
+    def node(self, t, **props):
+        n = self.nt.nodes.new(t)
+        for k, v in props.items():
+            setattr(n, k, v)
+        return n
+
+    def link(self, out, inp):
+        self.nt.links.new(out, inp)
+
+    def val(self, v):
+        n = self.node('ShaderNodeValue')
+        n.outputs[0].default_value = v
+        return n.outputs[0]
+
+    def math(self, op, a, b=None):
+        n = self.node('ShaderNodeMath', operation=op)
+        n.use_clamp = op in ('MULTIPLY', 'SUBTRACT', 'ADD')
+        for i, x in enumerate((a, b)):
+            if x is None:
+                continue
+            if isinstance(x, (int, float)):
+                n.inputs[i].default_value = x
+            else:
+                self.link(x, n.inputs[i])
+        return n.outputs[0]
+
+    def smooth(self, x, lo, hi):
+        n = self.node('ShaderNodeMapRange', interpolation_type='SMOOTHSTEP')
+        self.link(x, n.inputs['Value'])
+        n.inputs['From Min'].default_value = lo
+        n.inputs['From Max'].default_value = hi
+        return n.outputs['Result']
+
+    def mix(self, fac, a, b, blend='MIX'):
+        n = self.node('ShaderNodeMix', data_type='RGBA', blend_type=blend)
+        n.clamp_factor = True
+        fin = [s for s in n.inputs if s.name == 'Factor' and s.type == 'VALUE'][0]
+        ain = [s for s in n.inputs if s.name == 'A' and s.type == 'RGBA'][0]
+        bin_ = [s for s in n.inputs if s.name == 'B' and s.type == 'RGBA'][0]
+        for sock, x in ((fin, fac), (ain, a), (bin_, b)):
+            if isinstance(x, (int, float)):
+                sock.default_value = x
+            elif isinstance(x, tuple):
+                sock.default_value = (*x, 1)
+            else:
+                self.link(x, sock)
+        return [s for s in n.outputs if s.type == 'RGBA'][0]
+
+
+def autocolor_material(aid, a):
+    fam = color_family(a)
+    P = AUTOCOLOR[fam]
+    m = bpy.data.materials.new(f'auto_{aid}')
+    m.use_nodes = True
+    g = _NT(m)
+    out = g.node('ShaderNodeOutputMaterial')
+    bsdf = g.node('ShaderNodeBsdfPrincipled')
+    bsdf.inputs['Roughness'].default_value = 0.9
+    g.link(bsdf.outputs[0], out.inputs['Surface'])
+    h = g.node('ShaderNodeAttribute', attribute_name='hfrac', attribute_type='GEOMETRY').outputs['Fac']
+    geo = g.node('ShaderNodeNewGeometry')
+    sn = g.node('ShaderNodeSeparateXYZ')
+    g.link(geo.outputs['Normal'], sn.inputs[0])
+    nz = sn.outputs['Z']
+    tc = g.node('ShaderNodeTexCoord')
+    noise = g.node('ShaderNodeTexNoise')
+    noise.inputs['Scale'].default_value = 1.6
+    noise.inputs['Detail'].default_value = 4.0
+    g.link(tc.outputs['Object'], noise.inputs['Vector'])
+    grain = g.node('ShaderNodeTexNoise')
+    grain.inputs['Scale'].default_value = 40.0
+    g.link(tc.outputs['Object'], grain.inputs['Vector'])
+    nf = g.smooth(noise.outputs['Fac'], 0.35, 0.65)  # 水彩斑驳
+    ao_node = g.node('ShaderNodeAmbientOcclusion')
+    ao_node.inputs['Distance'].default_value = 0.8
+    ao = ao_node.outputs['AO']
+    up = g.smooth(nz, 0.3, 0.5)
+    flat = g.smooth(nz, 0.93, 0.985)
+    down = g.smooth(g.math('MULTIPLY', nz, -1.0), 0.25, 0.5)
+    glow_mask = None
+
+    if fam in ('building', 'gate'):
+        roof_lo = 0.3 if a['kind'] in ('shop2', 'gate') else 0.4
+        if 'eave' in a and a['kind'] not in ('shop2', 'gate'):
+            roof_lo = max(0.25, a['eave'] / a['size'][2] - 0.12)
+        roof_mask = g.math('MULTIPLY', g.math('MULTIPLY', up, g.smooth(h, roof_lo - 0.06, roof_lo + 0.02)), g.math('SUBTRACT', 1.0, flat))
+        c = g.mix(nf, P['wall'][0], P['wall'][1])
+        if fam == 'gate':
+            c = g.mix(g.smooth(h, 0.46, 0.52), c, g.mix(nf, P['upper'][0], P['upper'][1]))
+        trim_lo = roof_lo - 0.1
+        trim = g.math('MULTIPLY', g.smooth(h, trim_lo - 0.02, trim_lo), g.math('SUBTRACT', 1.0, g.smooth(h, roof_lo - 0.04, roof_lo)))
+        c = g.mix(trim, c, P['trim'])
+        c = g.mix(g.math('SUBTRACT', 1.0, g.smooth(h, 0.03, 0.07)), c, P['base'])
+        c = g.mix(down, c, P['under'])
+        roofc = g.mix(nf, P['roof'][0], P['roof'][1])
+        # 瓦垄：沿 X 方向的细条纹
+        wave = g.node('ShaderNodeTexWave', wave_type='BANDS', bands_direction='X')
+        wave.inputs['Scale'].default_value = 9.0
+        wave.inputs['Distortion'].default_value = 0.0
+        g.link(tc.outputs['Generated'], wave.inputs['Vector'])
+        roofc = g.mix(g.math('MULTIPLY', g.smooth(wave.outputs['Fac'], 0.6, 0.9), 0.35), roofc, (0.08, 0.09, 0.13))
+        c = g.mix(roof_mask, c, roofc)
+        # 凹进去的铺面、门窗：夜里透出暖光（只在下半部、非屋顶）
+        glow_mask = g.math('MULTIPLY', g.math('MULTIPLY', g.smooth(g.math('SUBTRACT', 1.0, ao), 0.25, 0.6), g.math('SUBTRACT', 1.0, g.smooth(h, roof_lo - 0.1, roof_lo))),
+                           g.math('SUBTRACT', 1.0, g.math('ADD', roof_mask, down)))
+    elif fam == 'character':
+        ramp = g.node('ShaderNodeValToRGB')
+        ramp.color_ramp.interpolation = 'CONSTANT'
+        els = ramp.color_ramp.elements
+        bands = P['bands']
+        els[0].position, els[0].color = bands[0][0], (*bands[0][1], 1)
+        els[1].position, els[1].color = bands[1][0], (*bands[1][1], 1)
+        for pos, col in bands[2:]:
+            e = els.new(pos)
+            e.color = (*col, 1)
+        g.link(h, ramp.inputs['Fac'])
+        c = ramp.outputs['Color']
+    elif fam == 'tree':
+        leaf = tuple(a['color'])
+        leaf2 = tuple(min(1, x * 1.25 + 0.05) for x in leaf)
+        canopy = g.mix(nf, leaf, leaf2)
+        trunk_mask = g.math('MULTIPLY', g.math('SUBTRACT', 1.0, g.smooth(h, 0.28, 0.4)), g.math('SUBTRACT', 1.0, up))
+        c = g.mix(trunk_mask, canopy, P['trunk'])
+    elif fam == 'stone':
+        c = g.mix(nf, P['wall'][0], P['wall'][1])
+        c = g.mix(up, c, P['top'])
+    else:
+        base = tuple(a['color'])
+        c = g.mix(nf, base, tuple(min(1, x * 1.2 + 0.04) for x in base))
+        c = g.mix(down, c, tuple(x * 0.45 for x in base))
+        if a['kind'] == 'lantern':
+            bsdf.inputs['Emission Color'].default_value = (*a['color'], 1)
+            bsdf.inputs['Emission Strength'].default_value = 6.0
+
+    # 纸纹颗粒 + 环境光遮蔽压暗 + 轮廓积色
+    c = g.mix(g.math('MULTIPLY', grain.outputs['Fac'], 0.12), c, (0.0, 0.0, 0.0), blend='MULTIPLY')
+    c = g.mix(g.math('MULTIPLY', g.math('SUBTRACT', 1.0, ao), 0.55), c, (0.0, 0.0, 0.0))
+    lw = g.node('ShaderNodeLayerWeight')
+    lw.inputs['Blend'].default_value = 0.35
+    c = g.mix(g.math('MULTIPLY', g.smooth(lw.outputs['Facing'], 0.55, 0.95), 0.45), c, P.get('ink', (0.15, 0.1, 0.1)))
+    g.link(c, bsdf.inputs['Base Color'])
+    if glow_mask is not None:
+        bsdf.inputs['Emission Color'].default_value = (*P['glow'], 1)
+        g.link(g.math('MULTIPLY', glow_mask, P['glowStrength']), bsdf.inputs['Emission Strength'])
+    return m
+
+
+def should_autocolor(a, objs):
+    mode = arg('--autocolor')
+    if mode == 'all':
+        return True
+    if mode == 'off':
+        return False
+    if 'autocolor' in a:
+        return bool(a['autocolor'])
+    return not has_texture(objs)
+
+
 # ---------------------------------------------------------------- 导入 Tripo 模型
 _imported = {}
 
@@ -371,7 +621,14 @@ def import_glb(aid, a, collection):
     root['size'] = (dims.x * s, dims.y * s, dims.z * s)
     root['scale'] = s
     _imported[aid] = root
-    print(f'[models] {a["file"]}: 原始 {dims.x:.2f}×{dims.y:.2f}×{dims.z:.2f} → 缩放 {s:.3f}')
+    colored = should_autocolor(a, meshes)
+    if colored:
+        write_height_attribute(meshes, mn.z, mx.z)
+        m = autocolor_material(aid, a)
+        for o in meshes:
+            o.data.materials.clear()
+            o.data.materials.append(m)
+    print(f'[models] {a["file"]}: 原始 {dims.x:.2f}×{dims.y:.2f}×{dims.z:.2f} → 缩放 {s:.3f}' + ('（白模，已自动上色）' if colored else ''))
     return root
 
 
@@ -858,4 +1115,5 @@ def main():
         bpy.ops.render.render(animation=True)
 
 
-main()
+if __name__ == '__main__':
+    main()
